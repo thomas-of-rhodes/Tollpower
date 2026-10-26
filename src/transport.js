@@ -111,6 +111,12 @@ export function autoDetectPort() {
   return '/dev/voltacon';
 }
 
+/** Is this a port path the installer may choose? Only real device names,
+ *  never ".." or other files, because the app writes to whatever is chosen. */
+export function isValidPortPath(p) {
+  return p === 'auto' || /^\/dev\/(voltacon|hidraw\d+|ttyUSB\d+|ttyACM\d+|ttyAMA\d+|ttyS\d+|serial\d+|serial\/by-id\/[\w:.-]+)$/.test(p) && !p.includes('..');
+}
+
 /** Lists device files that might be the inverter. */
 export function listCandidatePorts() {
   const found = [];

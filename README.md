@@ -33,7 +33,7 @@ Some models only have three charger options and no "only solar". The app detects
 On the Pi, in a terminal:
 
 ```bash
-git clone https://github.com/spunkyindigo/tollpower.git
+git clone https://github.com/thomas-of-rhodes/Tollpower.git tollpower
 cd tollpower
 ./scripts/install.sh
 ```
@@ -52,7 +52,7 @@ Then open the page, scroll to **Installer settings**, and choose a PIN. Check th
 
 ## Updating
 
-Go to **Installer settings → Check for update and install**, or run `./scripts/update.sh` on the Pi. The update installs the new version and runs its self-tests. It only switches over if everything passes; otherwise it automatically goes back to the version you had.
+Go to **Installer settings → Check for update and install**, or run `./scripts/update.sh` on the Pi. The update installs the new version, runs its self-tests and checks that it starts up. It only switches over if everything passes; otherwise it automatically goes back to the version you had.
 
 ## Trying it without an inverter
 
@@ -69,6 +69,7 @@ Demo mode uses a pretend inverter and shows a large orange banner, so it can't b
 | --- | --- |
 | "Can't talk to the inverter" | Is the USB cable plugged in at both ends? Installer settings → Connection shows the port and the last error. `ls -l /dev/voltacon` should show the device. |
 | Page won't open | `sudo systemctl status tollpower` on the Pi. Live log: `journalctl -u tollpower -f` |
+| "Open this page using the Pi's address" | For safety the app only answers to the Pi's IP address, `localhost`, or the Pi's own name (e.g. `tollpower.local`). To use another name (say, one set up in your router), add `Environment=TOLLPOWER_HOSTS=power.home.lan` to the service with `sudo systemctl edit tollpower`, then restart it. |
 | Forgot the installer PIN | On the Pi: `nano data/config.json`, delete the `pinHash` line, then `sudo systemctl restart tollpower` and choose a new PIN |
 | Battery % looks wrong | Without a BMS data cable, the inverter estimates battery % from voltage. That's the inverter's own figure, not the app's. |
 
