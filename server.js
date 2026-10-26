@@ -1,6 +1,6 @@
 // Tollpower: starts the web server and the inverter controller.
 // Usage: node server.js            (PORT env var, default 80 on the Pi via systemd, 3000 otherwise)
-//        DEMO=1 node server.js     (forces demo mode for trying it out on a PC)
+//        node server.js --demo     (forces demo mode for trying it out on a PC; DEMO=1 also works)
 
 import os from 'node:os';
 import { createApp } from './src/app.js';
@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dataDir = process.env.TOLLPOWER_DATA || path.join(path.dirname(fileURLToPath(import.meta.url)), 'data');
-if (process.env.DEMO === '1') {
+if (process.env.DEMO === '1' || process.argv.includes('--demo')) {
   const file = path.join(dataDir, 'config.json');
   writeJson(file, { ...loadConfig(file), demo: true });
 }
