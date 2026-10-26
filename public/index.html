@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Home Power</title>
-  <meta name="theme-color" content="#1f7a5a">
+  <meta name="theme-color" content="#121615">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Home Power">
   <link rel="manifest" href="/manifest.webmanifest">
@@ -32,34 +32,98 @@
         <div id="alerts"></div>
       </section>
 
-      <div class="grid two">
-        <section class="card">
-          <h2>Battery</h2>
-          <div class="battery">
-            <svg class="ring" viewBox="0 0 120 120" role="img" aria-labelledby="socText">
-              <circle class="track" cx="60" cy="60" r="50" fill="none" stroke-width="12"/>
-              <circle class="fill" id="socRing" cx="60" cy="60" r="50" fill="none" stroke-width="12"
-                      stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="314.16"
-                      transform="rotate(-90 60 60)"/>
-              <text id="socText" x="60" y="68" text-anchor="middle" font-size="26">–</text>
-            </svg>
-            <div>
-              <p class="big" id="batteryState">–</p>
-              <p class="sub" id="batteryDetail"></p>
-            </div>
-          </div>
-        </section>
+      <section class="card">
+        <h2>Right now</h2>
+        <!-- Power flows around the house. Lines only move for real readings; grid is an estimate. -->
+        <svg class="scene" id="scene" viewBox="0 0 560 372" role="img" aria-label="No live reading">
+          <defs>
+            <linearGradient id="houseGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" class="stop-house-top"/>
+              <stop offset="1" class="stop-house-bottom"/>
+            </linearGradient>
+            <linearGradient id="groundGrad" gradientUnits="userSpaceOnUse" x1="10" y1="0" x2="550" y2="0">
+              <stop offset="0" class="stop-line" stop-opacity="0"/>
+              <stop offset="0.2" class="stop-line"/>
+              <stop offset="0.8" class="stop-line"/>
+              <stop offset="1" class="stop-line" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="panelGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#4f86d4"/>
+              <stop offset="1" stop-color="#1b3263"/>
+            </linearGradient>
+            <radialGradient id="sunGrad" cx="0.38" cy="0.35" r="0.7">
+              <stop offset="0" stop-color="#fff1b8"/>
+              <stop offset="1" class="stop-solar"/>
+            </radialGradient>
+            <radialGradient id="haloGrad">
+              <stop offset="0" class="stop-solar" stop-opacity="0.45"/>
+              <stop offset="1" class="stop-solar" stop-opacity="0"/>
+            </radialGradient>
+            <linearGradient id="batGrad" gradientUnits="userSpaceOnUse" x1="0" y1="164" x2="0" y2="284">
+              <stop offset="0" class="stop-battery" stop-opacity="0.7"/>
+              <stop offset="1" class="stop-battery"/>
+            </linearGradient>
+            <radialGradient id="bulbHalo">
+              <stop offset="0" class="stop-bulb" stop-opacity="0.5"/>
+              <stop offset="1" class="stop-bulb" stop-opacity="0"/>
+            </radialGradient>
+            <!-- userSpaceOnUse: straight lines have a zero-height box, which would hide the glow -->
+            <filter id="glow" filterUnits="userSpaceOnUse" x="0" y="0" width="560" height="372">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
 
-        <section class="card">
-          <h2>Right now</h2>
-          <div class="tiles">
-            <div class="tile solar"><div class="label">Solar</div><div class="value" id="solarW">–</div></div>
-            <div class="tile"><div class="label">House using</div><div class="value" id="loadW">–</div></div>
-            <div class="tile grid"><div class="label">From grid</div><div class="value" id="gridW">–</div></div>
-          </div>
-          <p class="note" id="rate"></p>
-        </section>
-      </div>
+          <!-- Rounded corners (r 12) to match the battery and inverter -->
+          <path class="house" d="M162 300 Q150 300 150 288 V162 Q150 150 159.9 143.2 L300.1 46.8 Q310 40 319.9 46.8 L460.1 143.2 Q470 150 470 162 V288 Q470 300 458 300 Z"/>
+          <g class="panel" transform="translate(222 98) rotate(-34.5)">
+            <rect x="-56" y="-12" width="112" height="10" rx="5"/>
+          </g>
+          <line class="ground" x1="10" y1="300" x2="550" y2="300"/>
+
+          <g class="sun off" id="sun">
+            <circle class="halo" cx="60" cy="58" r="46"/>
+            <circle class="disc" cx="60" cy="58" r="20"/>
+          </g>
+          <text class="lbl" x="106" y="40">Solar</text>
+          <text class="val" x="106" y="72" id="sceneSolar">–</text>
+
+          <!-- Everything runs through the inverter box: solar and grid in, house and battery out. -->
+          <path class="track" d="M225 110 V180"/>
+          <path class="track" d="M10 280 H225 V250"/>
+          <path class="track" d="M260 200 H360 V172"/>
+          <path class="track" d="M260 235 H390"/>
+          <path class="flow solar" id="flowSolar" d="M225 110 V180" filter="url(#glow)"/>
+          <path class="flow grid" id="flowGrid" d="M10 280 H225 V250" filter="url(#glow)"/>
+          <path class="flow load" id="flowLoad" d="M260 200 H360 V172" filter="url(#glow)"/>
+          <path class="flow battery" id="flowBattery" d="M260 235 H390" filter="url(#glow)"/>
+
+          <g class="inverter">
+            <rect x="190" y="180" width="70" height="70" rx="14"/>
+            <path d="M209 216 q8 -12 16 0 t16 0"/>
+            <circle class="led" id="led" cx="247" cy="193" r="3.5" filter="url(#glow)"><title id="ledTitle">No live reading</title></circle>
+          </g>
+
+          <g class="bulb" id="bulb">
+            <circle class="glow" cx="360" cy="124" r="40"/>
+            <path class="glass" d="M350 139 C339 131 342 108 360 108 C378 108 381 131 370 139 V145 H350 Z"/>
+            <path class="cap" d="M352 150 H368 M354 155 H366"/>
+            <path class="wire" d="M360 159 V172"/>
+          </g>
+
+          <rect class="battery-cap" x="410" y="151" width="20" height="7" rx="2.5"/>
+          <rect class="battery-body" x="390" y="158" width="60" height="132" rx="11"/>
+          <g id="batterySegs"></g> <!-- 20 segments, one per 5%, drawn by app.js -->
+
+          <text class="lbl" x="10" y="334">From grid</text>
+          <text class="val" x="10" y="364"><tspan class="unit" id="gridAbout">about </tspan><tspan id="sceneGrid">–</tspan></text>
+          <text class="lbl" x="250" y="334" text-anchor="middle">House using</text>
+          <text class="val" x="250" y="364" text-anchor="middle" id="sceneLoad">–</text>
+          <text class="lbl" x="420" y="334" text-anchor="middle" id="sceneBatLbl">Battery</text>
+          <text class="val" x="420" y="364" text-anchor="middle"><tspan id="sceneSoc">–</tspan><tspan class="unit" id="sceneBatW"></tspan></text>
+        </svg>
+        <p class="note" id="rate"></p>
+      </section>
 
       <section class="card">
         <h2>Mode</h2>

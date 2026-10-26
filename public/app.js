@@ -41,24 +41,7 @@ function render(s) {
     ? `Updated ${new Date(s.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
     : 'No live data';
 
-  // Battery
-  const soc = s.battery?.soc;
-  const ring = $('socRing');
-  ring.style.strokeDashoffset = String(314.16 * (1 - (soc ?? 0) / 100));
-  $('socText').textContent = soc === undefined || soc === null ? '–' : `${Math.round(soc)}%`;
-  if (!s.battery) {
-    $('batteryState').textContent = 'Unknown';
-    $('batteryDetail').textContent = 'No live reading';
-  } else {
-    const w = s.battery.watts;
-    $('batteryState').textContent = w > 30 ? `Charging, ${kw(w)}` : w < -30 ? `Powering the house, ${kw(-w)}` : 'Resting';
-    $('batteryDetail').textContent = `${s.battery.volts?.toFixed(1)} V`;
-  }
-
-  // Power
-  $('solarW').textContent = kw(s.flow?.solarW);
-  $('loadW').textContent = kw(s.flow?.loadW);
-  $('gridW').textContent = kw(s.flow?.gridW);
+  renderScene(s);
   const t = s.tariff;
   $('rate').textContent = s.cheapNow
     ? `Cheap rate now (${t.cheapStart}–${t.cheapEnd}), ${t.cheapRatePence}p/kWh`
@@ -71,6 +54,96 @@ function render(s) {
   $('tSolar').textContent = `${s.today.solarKWh.toFixed(1)} kWh`;
   $('tGrid').textContent = `${s.today.gridKWh.toFixed(1)} kWh`;
   $('tSaved').textContent = pounds(s.today.savedPounds);
+}
+
+// Below this many watts a line counts as idle (sensor noise, standby).
+const IDLE_W = 30;
+
+function setFlow(id, watts, reverse = false) {
+  const path = $(id);
+  const on = watts !== null && watts !== undefined && Math.abs(watts) >= IDLE_W;
+  const level = !on ? 0 : Math.abs(watts) < 300 ? 0 : Math.abs(watts) < 1500 ? 1 : 2;
+  path.classList.toggle('on', on);
+  path.classList.toggle('reverse', reverse);
+  path.style.setProperty('--dur', ['1.1s', '0.65s', '0.4s'][level]);
+  path.setAttribute('stroke-width', [2.5, 3.5, 4.5][level]);
+}
+
+// Bulb colour by how much the house is using: yellow, then orange, then red.
+const BULB_COLOURS = [[1000, '#f5d547'], [2500, '#f59e42'], [Infinity, '#f05252']];
+
+// Battery is green from 25% up; below that it fades from amber to red (fully red at 5%).
+const BATTERY_LOW = 25;
+const mixHex = (a, b, t) => '#' + [1, 3, 5]
+  .map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0'))
+  .join('');
+const batteryColour = (soc) => (soc === null || soc >= BATTERY_LOW
+  ? 'var(--battery)'
+  : mixHex('#f0b84d', '#f04f4f', Math.min(1, (BATTERY_LOW - soc) / (BATTERY_LOW - 5))));
+
+// "1.8 kW" as a number with a smaller, muted unit.
+function setPower(id, watts) {
+  const [num, unit] = kw(watts).split(' ');
+  const span = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+  span.setAttribute('class', 'unit');
+  span.textContent = ` ${unit}`;
+  $(id).replaceChildren(num, ...(unit ? [span] : []));
+}
+
+// 20 battery segments (5% each), bottom one first. Built once.
+let segments = null;
+function batterySegments() {
+  if (!segments) {
+    segments = Array.from({ length: 20 }, (_, i) => {
+      const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      Object.entries({ class: 'battery-seg', x: 396, y: 278.5 - i * 6, width: 48, height: 4.5, rx: 1.5 })
+        .forEach(([k, v]) => r.setAttribute(k, v));
+      return r;
+    });
+    $('batterySegs').replaceChildren(...segments);
+  }
+  return segments;
+}
+
+function renderScene(s) {
+  const f = s.flow; // null when offline: everything goes still and shows "–"
+  const b = s.battery;
+  const soc = b?.soc ?? null;
+
+  $('sun').classList.toggle('off', !(f?.solarW >= IDLE_W));
+  $('sun').style.opacity = f?.solarW >= IDLE_W ? String(0.55 + 0.45 * Math.min(1, f.solarW / 2000)) : '';
+  setPower('sceneSolar', f?.solarW);
+
+  const lit = f?.loadW >= IDLE_W;
+  $('bulb').classList.toggle('lit', lit);
+  if (lit) $('scene').style.setProperty('--bulb', BULB_COLOURS.find(([max]) => f.loadW < max)[1]);
+  $('bulb').querySelector('.glow').style.opacity = lit ? String(0.35 + 0.65 * Math.min(1, f.loadW / 2000)) : '';
+  setPower('sceneLoad', f?.loadW);
+
+  $('gridAbout').style.display = f?.gridW >= IDLE_W ? '' : 'none';
+  setPower('sceneGrid', f?.gridW);
+
+  // One segment per 5%, rounded up so a nearly empty battery still shows one.
+  const litSegs = soc === null ? 0 : Math.ceil(Math.max(0, Math.min(100, soc)) / 5);
+  batterySegments().forEach((seg, i) => seg.classList.toggle('on', i < litSegs));
+  $('scene').style.setProperty('--bat', batteryColour(soc));
+  const bw = b?.watts ?? null;
+  const state = !b ? '' : bw > IDLE_W ? 'charging' : bw < -IDLE_W ? 'in use' : 'resting';
+  $('sceneBatLbl').textContent = state ? `Battery ${state}` : 'Battery';
+  $('sceneSoc').textContent = soc === null ? '–' : `${Math.round(soc)}%`;
+  $('led').setAttribute('class', `led ${f ? s.status.level : ''}`);
+  $('ledTitle').textContent = f ? s.status.headline : 'No live reading';
+  $('sceneBatW').textContent = state === 'charging' || state === 'in use' ? ` · ${kw(Math.abs(bw))}` : '';
+
+  setFlow('flowSolar', f?.solarW);
+  setFlow('flowGrid', f?.gridW);
+  setFlow('flowLoad', f?.loadW);
+  setFlow('flowBattery', bw, bw < 0);
+
+  $('scene').setAttribute('aria-label', !f
+    ? 'No live reading'
+    : `Solar ${kw(f.solarW)}. House using ${kw(f.loadW)}. From grid about ${kw(f.gridW)}. `
+      + `Battery ${soc === null ? 'unknown' : `${Math.round(soc)}%`}${state ? `, ${state}` : ''}${$('sceneBatW').textContent.replace(' · ', ' at ')}.`);
 }
 
 function renderModes(s) {

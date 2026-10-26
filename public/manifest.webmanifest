@@ -3,8 +3,8 @@
   "short_name": "Home Power",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f4f5f2",
-  "theme_color": "#1f7a5a",
+  "background_color": "#121615",
+  "theme_color": "#121615",
   "icons": [
     { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },

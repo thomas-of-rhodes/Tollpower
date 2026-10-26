@@ -1,43 +1,24 @@
+/* Dark theme for everyone: the house picture glows best on a dark background. */
 :root {
-  --bg: #f4f5f2;
-  --card: #ffffff;
-  --text: #1c2321;
-  --muted: #5f6b67;
-  --line: #e2e5e0;
-  --accent: #1f7a5a;
-  --accent-soft: #e3f2ec;
-  --ok: #1f7a5a;
-  --ok-soft: #e3f2ec;
-  --warn: #9a6200;
-  --warn-soft: #fdf1d8;
-  --bad: #b3261e;
-  --bad-soft: #fbe4e2;
-  --solar: #d99a00;
-  --grid: #5b6ad0;
-  --battery: #1f7a5a;
+  --bg: #121615;
+  --card: #1b2120;
+  --text: #e8ece9;
+  --muted: #9aa6a1;
+  --line: #2b3331;
+  --accent: #5cc79d;
+  --accent-soft: #1d3a2f;
+  --ok: #5cc79d;
+  --ok-soft: #1d3a2f;
+  --warn: #f0b84d;
+  --warn-soft: #3a2f17;
+  --bad: #ff8a80;
+  --bad-soft: #43201d;
+  --solar: #f2c14e;
+  --grid: #8d99f0;
+  --battery: #5cc79d;
+  --load: #6cc8f0;
   --radius: 18px;
-  color-scheme: light dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121615;
-    --card: #1b2120;
-    --text: #e8ece9;
-    --muted: #9aa6a1;
-    --line: #2b3331;
-    --accent: #5cc79d;
-    --accent-soft: #1d3a2f;
-    --ok: #5cc79d;
-    --ok-soft: #1d3a2f;
-    --warn: #f0b84d;
-    --warn-soft: #3a2f17;
-    --bad: #ff8a80;
-    --bad-soft: #43201d;
-    --solar: #f2c14e;
-    --grid: #8d99f0;
-    --battery: #5cc79d;
-  }
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -101,23 +82,76 @@ header.top .meta { color: var(--muted); font-size: 0.85rem; }
 .alert strong { display: block; }
 .alert span { color: var(--text); opacity: 0.85; font-size: 0.95rem; }
 
-/* Battery */
-.battery { display: flex; align-items: center; gap: 20px; }
-.ring { width: 132px; height: 132px; flex: none; }
-.ring .track { stroke: var(--line); }
-.ring .fill { stroke: var(--battery); transition: stroke-dashoffset 0.6s ease; }
-.ring text { fill: var(--text); font-weight: 700; }
-.battery .big { font-size: 1.1rem; font-weight: 600; margin: 0; }
-.battery .sub { color: var(--muted); margin: 4px 0 0; }
+/* Right now: house scene */
+.scene { display: block; width: 100%; max-width: 640px; height: auto; margin: 0 auto; --bat: var(--battery); --bulb: var(--solar); }
+.scene .lbl { fill: var(--muted); font-size: 15px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.scene .val { fill: var(--text); font-size: 30px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.scene .unit { fill: var(--muted); font-size: 17px; font-weight: 500; letter-spacing: 0; }
+/* The picture scales down on phones, so its text needs to start bigger. */
+@media (max-width: 560px) {
+  .scene .lbl { font-size: 18px; letter-spacing: 0.03em; }
+  .scene .val { font-size: 34px; }
+  .scene .unit { font-size: 20px; }
+}
 
-/* Power tiles */
-.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.tile { border-radius: 14px; background: var(--bg); padding: 12px; }
-.tile .label { color: var(--muted); font-size: 0.82rem; }
-.tile .value { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.tile .unit { font-size: 0.85rem; font-weight: 500; color: var(--muted); }
-.tile.solar .value { color: var(--solar); }
-.tile.grid .value { color: var(--grid); }
+.scene .stop-house-top { stop-color: var(--card); }
+.scene .stop-house-bottom { stop-color: var(--bg); }
+.scene .stop-line { stop-color: var(--line); }
+.scene .stop-solar { stop-color: var(--solar); }
+.scene .stop-battery { stop-color: var(--bat); } /* set from the battery % */
+.scene .stop-bulb { stop-color: var(--bulb); } /* set from how much the house uses */
+
+.scene .ground { stroke: url(#groundGrad); stroke-width: 2; }
+.scene .house { fill: url(#houseGrad); stroke: var(--muted); stroke-opacity: 0.55; stroke-width: 3; stroke-linejoin: round; }
+.scene .panel rect { fill: url(#panelGrad); }
+
+.scene .sun { transition: opacity 0.6s ease; }
+.scene .sun.off { opacity: 0; }
+.scene .sun .disc { fill: url(#sunGrad); }
+.scene .sun .halo { fill: url(#haloGrad); }
+
+.scene .inverter rect { fill: var(--card); stroke: var(--muted); stroke-opacity: 0.55; stroke-width: 2; }
+.scene .inverter path { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+/* Inverter lamp follows the status: off when there's no reading. */
+.scene .led { fill: var(--line); transition: fill 0.4s ease; }
+.scene .led.ok { fill: var(--ok); }
+.scene .led.attention { fill: var(--warn); }
+.scene .led.problem { fill: var(--bad); animation: blink 1.2s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: 0.25; } }
+
+/* Lightbulb: glows with how much power the house is using. */
+.scene .bulb .glass { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linejoin: round; transition: fill 0.6s ease, stroke 0.6s ease; }
+.scene .bulb .cap, .scene .bulb .wire { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+.scene .bulb .glow { fill: url(#bulbHalo); opacity: 0; transition: opacity 0.6s ease; }
+.scene .bulb.lit .glass { fill: var(--bulb); stroke: var(--bulb); }
+
+.scene .battery-body { fill: var(--card); stroke: var(--muted); stroke-opacity: 0.55; stroke-width: 2; }
+.scene .battery-cap { fill: var(--muted); fill-opacity: 0.55; }
+.scene .battery-seg { fill: var(--line); transition: fill 0.4s ease; }
+.scene .battery-seg.on { fill: url(#batGrad); }
+
+/* Faint lines always; glowing pulses show where power is going. */
+.scene .track { fill: none; stroke: var(--line); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.scene .flow {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 10 18;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  animation: flow var(--dur, 1s) linear infinite;
+}
+.scene .flow.on { opacity: 1; }
+.scene .flow.reverse { animation-direction: reverse; }
+.scene .flow.solar { stroke: var(--solar); }
+.scene .flow.grid { stroke: var(--grid); }
+.scene .flow.grid.on { opacity: 0.7; } /* estimated, so a little softer */
+.scene .flow.battery { stroke: var(--battery); }
+.scene .flow.load { stroke: var(--load); }
+@keyframes flow { to { stroke-dashoffset: -28; } }
+@media (prefers-reduced-motion: reduce) {
+  .scene .flow, .scene .led { animation: none; }
+}
 
 /* Modes */
 .modes { display: grid; gap: 10px; }
@@ -155,7 +189,7 @@ header.top .meta { color: var(--muted); font-size: 0.85rem; }
 
 .demo-banner {
   background: var(--warn);
-  color: #fff;
+  color: var(--bg);
   text-align: center;
   font-weight: 700;
   padding: 10px 16px;
