@@ -43,6 +43,8 @@ Some models only have three charger options and no "only solar". The app detects
 
 ## Install (about 5 minutes)
 
+Starting from a blank SD card, or moving to a new Pi? Follow the step-by-step [quick start guide](docs/quick-start.md).
+
 On the Pi, in a terminal:
 
 ```bash
