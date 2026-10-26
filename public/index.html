@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Home Power</title>
+  <meta name="theme-color" content="#1f7a5a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Home Power">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="demo" class="demo-banner hidden">DEMO MODE: these are not real readings</div>
+  <main>
+    <header class="top">
+      <h1>Home Power</h1>
+      <span class="meta" id="updated">Connecting…</span>
+    </header>
+
+    <div class="grid">
+      <section class="card" aria-live="polite">
+        <div class="status" id="status">
+          <div class="dot" aria-hidden="true"></div>
+          <div>
+            <p class="headline" id="headline">Connecting to the inverter…</p>
+            <p class="plan" id="plan"></p>
+          </div>
+        </div>
+        <div id="alerts"></div>
+      </section>
+
+      <div class="grid two">
+        <section class="card">
+          <h2>Battery</h2>
+          <div class="battery">
+            <svg class="ring" viewBox="0 0 120 120" role="img" aria-labelledby="socText">
+              <circle class="track" cx="60" cy="60" r="50" fill="none" stroke-width="12"/>
+              <circle class="fill" id="socRing" cx="60" cy="60" r="50" fill="none" stroke-width="12"
+                      stroke-linecap="round" stroke-dasharray="314.16" stroke-dashoffset="314.16"
+                      transform="rotate(-90 60 60)"/>
+              <text id="socText" x="60" y="68" text-anchor="middle" font-size="26">–</text>
+            </svg>
+            <div>
+              <p class="big" id="batteryState">–</p>
+              <p class="sub" id="batteryDetail"></p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <h2>Right now</h2>
+          <div class="tiles">
+            <div class="tile solar"><div class="label">Solar</div><div class="value" id="solarW">–</div></div>
+            <div class="tile"><div class="label">House using</div><div class="value" id="loadW">–</div></div>
+            <div class="tile grid"><div class="label">From grid</div><div class="value" id="gridW">–</div></div>
+          </div>
+          <p class="note" id="rate"></p>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Mode</h2>
+        <div class="modes" id="modes"></div>
+        <p class="note" id="modeMsg">Tap a mode to switch. The inverter is checked to make sure it changed.</p>
+      </section>
+
+      <section class="card">
+        <h2>Today</h2>
+        <div class="stats">
+          <div class="stat"><div class="value" id="tSolar">–</div><div class="label">Solar made</div></div>
+          <div class="stat"><div class="value" id="tGrid">–</div><div class="label">Bought from grid</div></div>
+          <div class="stat"><div class="value" id="tSaved">–</div><div class="label">Saved today</div></div>
+        </div>
+        <svg class="chart" id="chart" role="img" aria-label="Solar and grid energy for the last 14 days"></svg>
+        <div class="legend"><span><i style="background:var(--solar)"></i>Solar</span><span><i style="background:var(--grid)"></i>Grid</span><span>Last 14 days</span></div>
+      </section>
+    </div>
+
+    <footer>
+      <a href="/installer">Installer settings</a> · <a href="/api/history.csv">Download history (CSV)</a>
+    </footer>
+  </main>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

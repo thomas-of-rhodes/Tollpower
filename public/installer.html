@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Installer · Home Power</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main>
+    <header class="top">
+      <h1>Installer settings</h1>
+      <span class="meta"><a href="/">← Family view</a></span>
+    </header>
+
+    <!-- Login / first-time PIN -->
+    <section class="card login hidden" id="loginCard">
+      <h2 id="loginTitle">Enter installer PIN</h2>
+      <form id="loginForm">
+        <label for="pin" id="pinLabel">PIN</label>
+        <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" pattern="\d{4,8}" required>
+        <button class="primary" type="submit" id="loginBtn">Unlock</button>
+        <div class="msg error" id="loginMsg"></div>
+      </form>
+    </section>
+
+    <div id="panel" class="grid hidden">
+      <div class="grid two">
+        <section class="card">
+          <h2>Live readings</h2>
+          <table id="liveTable"></table>
+        </section>
+        <section class="card">
+          <h2>Inverter settings</h2>
+          <table id="settingsTable"></table>
+          <p class="note">The app keeps these matching the chosen mode. Changes made on the inverter's own buttons will be put back.</p>
+        </section>
+      </div>
+
+      <section class="card">
+        <h2>Tariff and charging</h2>
+        <form id="tariffForm">
+          <div class="row">
+            <div><label for="tName">Tariff name</label><input id="tName"></div>
+            <div><label for="installerName">Who to call (shown in alerts)</label><input id="installerName"></div>
+          </div>
+          <div class="row">
+            <div><label for="cheapStart">Cheap rate starts</label><input id="cheapStart" type="time" required></div>
+            <div><label for="cheapEnd">Cheap rate ends</label><input id="cheapEnd" type="time" required></div>
+          </div>
+          <div class="row">
+            <div><label for="cheapRate">Cheap rate (p/kWh)</label><input id="cheapRate" type="number" step="0.01" min="0" required></div>
+            <div><label for="peakRate">Normal rate (p/kWh)</label><input id="peakRate" type="number" step="0.01" min="0" required></div>
+          </div>
+          <div class="row">
+            <div><label for="target">Overnight: charge battery up to (%)</label><input id="target" type="number" min="5" max="100" required></div>
+            <div><label for="lowWarn">Warn when battery below (%)</label><input id="lowWarn" type="number" min="5" max="100" required></div>
+          </div>
+          <button class="primary" type="submit">Save</button>
+          <div class="msg" id="tariffMsg"></div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Connection</h2>
+        <p id="linkSummary"></p>
+        <form id="linkForm">
+          <label for="port">Inverter port</label>
+          <select id="port"></select>
+          <label class="switch"><input type="checkbox" id="demo"> Demo mode (pretend inverter, for trying things out)</label>
+          <button class="primary" type="submit">Save connection</button>
+          <div class="msg" id="linkMsg"></div>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Diagnostics console</h2>
+        <p class="note">Read-only questions only (commands starting with Q, e.g. QPIGS, QPIRI, QMOD, QPIWS, QID, QVFW). Settings can't be changed from here.</p>
+        <form id="queryForm" class="row">
+          <input id="query" value="QPIRI" autocapitalize="characters" aria-label="Command">
+          <button class="secondary" type="submit" style="margin-top:0">Send</button>
+        </form>
+        <pre class="log" id="queryOut">–</pre>
+        <h2 style="margin-top:18px">Recent messages with the inverter</h2>
+        <pre class="log" id="commLog"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Event log</h2>
+        <pre class="log" id="events"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Software</h2>
+        <p id="version"></p>
+        <button class="secondary" id="updateBtn" type="button">Check for update and install</button>
+        <pre class="log hidden" id="updateLog"></pre>
+        <h2 style="margin-top:18px">Change PIN</h2>
+        <form id="pinForm" class="row">
+          <input id="newPin" type="password" inputmode="numeric" pattern="\d{4,8}" placeholder="New PIN (4–8 digits)" required>
+          <button class="secondary" type="submit" style="margin-top:0">Change PIN</button>
+        </form>
+        <div class="msg" id="pinMsg"></div>
+        <button class="secondary" id="logoutBtn" type="button">Lock installer settings</button>
+      </section>
+    </div>
+  </main>
+  <script src="/installer.js" type="module"></script>
+</body>
+</html>

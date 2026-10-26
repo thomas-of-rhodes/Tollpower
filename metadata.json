@@ -1,6 +1,0 @@
-{
-  "name": "Tollpower",
-  "description": "Mobile and tablet-ready Raspberry Pi inverter command and monitoring station with live telemetry, remote controls, and one-click GitHub self-updater.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
