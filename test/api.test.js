@@ -6,7 +6,16 @@ import path from 'node:path';
 import { createApp } from '../src/app.js';
 import { writeJson } from '../src/store.js';
 
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tollpower-api-'));
+// Temp data folders, removed once this file's tests finish.
+const tempDirs = [];
+const tempDir = (prefix = 'tollpower-api-') => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+};
+after(() => tempDirs.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
+
+const dataDir = tempDir();
 writeJson(path.join(dataDir, 'config.json'), { demo: true, mode: 'solar' });
 const { app, controller } = createApp({ dataDir });
 const server = app.listen(0);
@@ -50,7 +59,7 @@ test('installer area needs a PIN; wrong PINs lock out', async () => {
 });
 
 test('diagnostics console refuses anything except read-only queries', async () => {
-  const fresh = createApp({ dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'tollpower-api-')) });
+  const fresh = createApp({ dataDir: tempDir() });
   const s2 = fresh.app.listen(0);
   const b2 = `http://127.0.0.1:${s2.address().port}`;
   const p2 = (url, body, cookie) => fetch(b2 + url, { method: 'POST', headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) });

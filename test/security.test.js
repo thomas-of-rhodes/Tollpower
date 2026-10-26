@@ -8,7 +8,16 @@ import { createApp, allowedHost } from '../src/app.js';
 import { isValidPortPath } from '../src/transport.js';
 import { writeJson } from '../src/store.js';
 
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tollpower-sec-'));
+// Temp data folders, removed once this file's tests finish.
+const tempDirs = [];
+const tempDir = (prefix = 'tollpower-sec-') => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+};
+after(() => tempDirs.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
+
+const dataDir = tempDir();
 writeJson(path.join(dataDir, 'config.json'), { demo: true });
 const { app } = createApp({ dataDir });
 const server = app.listen(0);

@@ -23,6 +23,8 @@ CI (`.github/workflows/test.yml`) runs `npm test` on Node 18 on every push.
 - `src/modes.js` – the four family modes → inverter priorities, cheap-rate window
 - `src/controller.js` – polling, enforcing the mode, alerts
 - `src/history.js` – energy/cost history in `data/history.json`
+- `src/store.js` – `data/config.json` defaults, atomic JSON writes
+- `src/auth.js` – PIN hashing, sessions, wrong-PIN lockout
 - `src/app.js` – API routes, installer PIN, `allowedHost` check
 - `public/` – family page (`index.html`, `app.js`) and installer page
 - `scripts/install.sh`, `scripts/update.sh` – Pi install and self-update (bash, run on the Pi)

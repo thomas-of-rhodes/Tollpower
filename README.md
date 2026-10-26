@@ -84,6 +84,8 @@ src/simulator.js     pretend inverter for demo mode and tests
 src/modes.js         the four modes and the cheap-rate schedule
 src/controller.js    polling, keeping settings in line with the mode, alerts
 src/history.js       energy, cost and savings history (data/history.json)
+src/store.js         settings in data/config.json, saved safely against power cuts
+src/auth.js          installer PIN, login sessions and lock-out after wrong guesses
 src/app.js           web API, with PIN protection for the installer area
 public/              the web pages (plain HTML/CSS/JS, no build step)
 scripts/             install and safe update

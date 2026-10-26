@@ -31,5 +31,7 @@ test('server.js starts in demo mode and answers /api/status', async () => {
     assert.equal(status.demo, true);
   } finally {
     child.kill();
+    await new Promise((r) => (child.exitCode !== null || child.signalCode !== null ? r() : child.once('exit', r)));
+    fs.rmSync(dataDir, { recursive: true, force: true });
   }
 });

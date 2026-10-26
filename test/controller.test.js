@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import os from 'node:os';
 import path from 'node:path';
@@ -40,8 +40,17 @@ test('automatic mode: day vs cheap night, with charge target and hysteresis', ()
 
 const pick = (d) => [d.outputPriority, d.chargerPriority];
 
+// Temp data folders, removed once this file's tests finish.
+const tempDirs = [];
+const tempDir = (prefix = 'tollpower-') => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tempDirs.push(dir);
+  return dir;
+};
+after(() => tempDirs.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
+
 function setup({ mode = 'solar', clockAt = at(14) } = {}) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tollpower-'));
+  const dir = tempDir();
   let now = clockAt;
   const clock = () => now;
   const sim = new SimulatedTransport({ clock });
@@ -95,7 +104,7 @@ test('goes offline and shows no numbers when the inverter stops answering', asyn
 });
 
 test('history adds up energy and savings from real readings', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tollpower-'));
+  const dir = tempDir();
   const h = new History(path.join(dir, 'h.json'));
   // 1 kW load, all from solar, for one hour at peak rate, sampled every 10s
   for (let s = 0; s <= 3600; s += 10) {
@@ -112,7 +121,7 @@ test('history adds up energy and savings from real readings', () => {
 });
 
 test('history does not invent energy across a gap', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tollpower-'));
+  const dir = tempDir();
   const h = new History(path.join(dir, 'h.json'));
   h.add({ at: at(12), solarW: 1000, loadW: 0, gridW: 0 }, tariff);
   h.add({ at: at(14), solarW: 1000, loadW: 0, gridW: 0 }, tariff); // 2h gap: not counted
