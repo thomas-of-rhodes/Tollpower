@@ -4,7 +4,7 @@ About 30 minutes, most of it waiting for downloads.
 
 ## You need
 
-- A Raspberry Pi (3B+, 4, 5 or Zero 2 W) and its power supply
+- A Raspberry Pi (3B+, 4, 5 or Zero 2 W) and its power supply. An older Pi 2 should also work: see [Using a Pi 2](#using-a-pi-2).
 - A microSD card, 16 GB or bigger (a good brand: it gets written to every few minutes)
 - A PC with an SD card reader
 - The inverter's USB cable (square USB-B on the inverter end)
@@ -22,6 +22,14 @@ About 30 minutes, most of it waiting for downloads.
    - **Locale:** time zone **Europe/London**, keyboard **gb**. *This matters:* the cheap-rate window and the timer use the Pi's clock.
    - **Services** tab: **Enable SSH**, with password authentication
 5. Save, write the card, and wait for it to verify.
+
+### Using a Pi 2
+
+A Pi 2 hasn't been tested, but it has enough power for Tollpower. Three differences:
+
+- **Choose Raspberry Pi OS Lite (32-bit)** in step 1. The 64-bit version won't boot on most Pi 2s.
+- **It has no Wi-Fi.** Plug it into the router with an Ethernet cable (simplest and most reliable), or use a USB Wi-Fi dongle that Raspberry Pi OS supports. With Ethernet, leave the Wireless LAN settings blank.
+- **Setup is slower.** The update, install and self-tests in step 3 take a few times longer than on a newer Pi, and so do updates later. Day to day it runs fine.
 
 ## 2. First boot
 
