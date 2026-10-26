@@ -51,11 +51,41 @@ rollback() {
   exit 1
 }
 
+# Start the new version on a spare port with throwaway demo data and check it
+# answers. This runs before the switch-over because restarting the service
+# also stops this script (it runs inside the service), so a check after the
+# restart would never get to roll back.
+start_check() {
+  local tmp port pid ok=1
+  tmp="$(mktemp -d)"
+  port=$(( 20000 + RANDOM % 20000 ))
+  DEMO=1 PORT="$port" TOLLPOWER_DATA="$tmp" node server.js >"$tmp/out.log" 2>&1 &
+  pid=$!
+  for _ in $(seq 1 30); do
+    if node -e "fetch('http://127.0.0.1:$port/api/status').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"; then
+      ok=0
+      break
+    fi
+    kill -0 "$pid" 2>/dev/null || break # it crashed
+    sleep 1
+  done
+  kill "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+  if (( ok != 0 )); then
+    say "The new version did not start. Its output:"
+    tail -20 "$tmp/out.log"
+  fi
+  rm -rf "$tmp"
+  return $ok
+}
+
 git merge --ff-only --quiet "$UPSTREAM" || rollback "the new version could not be applied cleanly"
 say "Installing..."
 npm ci --omit=dev --no-audit --no-fund || rollback "installing dependencies failed"
 say "Running self-tests..."
 npm test --silent || rollback "self-tests failed"
+say "Checking the new version starts..."
+start_check || rollback "the new version did not start"
 
 say "Update finished: now on $(git rev-parse --short HEAD)."
 restart

@@ -3,11 +3,13 @@
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
+import net from 'node:net';
+import os from 'node:os';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { Inverter } from './inverter.js';
-import { DeviceTransport, autoDetectPort, listCandidatePorts } from './transport.js';
+import { DeviceTransport, autoDetectPort, listCandidatePorts, isValidPortPath } from './transport.js';
 import { SimulatedTransport } from './simulator.js';
 import { Controller } from './controller.js';
 import { History } from './history.js';
@@ -27,6 +29,28 @@ function version() {
     /* not a git checkout */
   }
   return { version: pkg.version, commit };
+}
+
+/**
+ * Only answer requests addressed to this Pi: an IP address, localhost, or
+ * the Pi's own name (with or without .local). This stops "DNS rebinding",
+ * where a web page on another site points its own name at the Pi so the
+ * visitor's browser can use the family API. Extra names can be allowed with
+ * TOLLPOWER_HOSTS=name1,name2.
+ */
+export function allowedHost(hostHeader, hostname = os.hostname(), extra = process.env.TOLLPOWER_HOSTS || '') {
+  if (!hostHeader) return false;
+  let name;
+  try {
+    name = new URL(`http://${hostHeader}`).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (name.startsWith('[') && name.endsWith(']')) name = name.slice(1, -1);
+  if (net.isIP(name)) return true;
+  const me = hostname.toLowerCase();
+  const allowed = ['localhost', me, `${me}.local`, ...extra.split(',').map((h) => h.trim().toLowerCase()).filter(Boolean)];
+  return allowed.includes(name.replace(/\.$/, ''));
 }
 
 export function createApp({ dataDir = path.join(ROOT, 'data'), clock } = {}) {
@@ -50,6 +74,9 @@ export function createApp({ dataDir = path.join(ROOT, 'data'), clock } = {}) {
 
   const app = express();
   app.disable('x-powered-by');
+  app.use((req, res, next) => (allowedHost(req.headers.host)
+    ? next()
+    : res.status(421).type('text/plain').send('Open this page using the Pi\'s address, e.g. http://tollpower.local')));
   app.use(express.json({ limit: '16kb' }));
 
   // ---- Family (no PIN) ----------------------------------------------------
@@ -147,7 +174,7 @@ export function createApp({ dataDir = path.join(ROOT, 'data'), clock } = {}) {
     if (b.lowBatteryWarnSoc !== undefined) pct(b.lowBatteryWarnSoc) ? (next.lowBatteryWarnSoc = b.lowBatteryWarnSoc) : errors.push('Low battery warning must be 5-100%');
     if (b.installerName !== undefined) next.installerName = String(b.installerName).slice(0, 30);
     if (b.port !== undefined) {
-      b.port === 'auto' || /^\/dev\/[\w./-]+$/.test(b.port) ? (next.port = b.port) : errors.push('Port must be "auto" or a /dev path');
+      isValidPortPath(b.port) ? (next.port = b.port) : errors.push('Port must be "auto" or an inverter device such as /dev/hidraw0 or /dev/ttyUSB0');
     }
     if (b.demo !== undefined) next.demo = !!b.demo;
     if (errors.length) return res.status(400).json({ error: errors.join('. ') });
