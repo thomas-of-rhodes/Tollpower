@@ -1,11 +1,16 @@
-// The brain: polls the inverter, keeps its settings matching the chosen mode,
+// The brain: polls the inverter, keeps its settings matching the timer (or a manual over-ride),
 // records history and turns problems into plain-English alerts.
 
 import {
   parseQPIGS, parseQPIRI, parseQMOD, parseQPIWS,
   setOutputPriorityCommand, setChargerPriorityCommand,
 } from './protocol.js';
-import { desiredSettings, inCheapWindow, MODES } from './modes.js';
+import {
+  desiredSettings, inCheapWindow, slotAt, settingsLabel, validSettings, validateSchedule,
+  OUTPUT_INFO, CHARGER_INFO, OUTPUT_CHOICES, CHARGER_CHOICES, MAX_SLOTS, MIN_SLOT_MINUTES,
+} from './modes.js';
+
+const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
 const OFFLINE_AFTER_MS = 30_000;
 const POLL_MS = 5_000;
@@ -71,7 +76,7 @@ export class Controller {
       if (n % 12 === 0 || !this.settings) this.settings = parseQPIRI(await this.inverter.send('QPIRI'));
 
       const flow = this.powerFlow();
-      this.history.add({ at: this.liveAt, solarW: flow.solarW, loadW: flow.loadW, gridW: flow.gridW }, this.getConfig().tariff);
+      this.history.add({ at: this.liveAt, ...flow, soc: live.batterySoc ?? null }, this.getConfig().tariff);
       await this.enforceMode();
     } catch (err) {
       if (!this.isOnline()) this.history.breakSeries();
@@ -85,7 +90,7 @@ export class Controller {
     return this.liveAt !== null && this.clock() - this.liveAt < OFFLINE_AFTER_MS;
   }
 
-  /** Make the inverter's settings match the chosen mode, and check they stuck. */
+  /** Make the inverter's settings match the timer (or a manual over-ride), and check they stuck. */
   enforceMode() {
     // Only one enforcement at a time (the poll loop and a button press can overlap).
     if (!this.enforcing) {
@@ -98,18 +103,23 @@ export class Controller {
 
   async #enforce() {
     const cfg = this.getConfig();
+    if (cfg.override && this.clock() >= new Date(cfg.override.until)) {
+      this.saveConfig({ ...cfg, override: null });
+      this.logEvent('info', 'Manual over-ride ended: back to the timer');
+    }
     const want = desiredSettings({
-      mode: cfg.mode,
+      timerOn: cfg.timerOn,
+      schedule: cfg.schedule,
+      override: this.getConfig().override,
+      manual: cfg.manual,
       date: this.clock(),
-      tariff: cfg.tariff,
       soc: this.live?.batterySoc ?? null,
-      target: cfg.nightChargeTargetSoc,
       wasGridCharging: this.gridCharging,
     });
+    this.gridCharging = want.chargerPriority !== 'OSO';
     // Models with only three charger options have no "only solar"; use "solar first".
     if (want.chargerPriority === 'OSO' && this.unsupported.has('OSO')) want.chargerPriority = 'SOL';
     this.desired = want;
-    this.gridCharging = want.chargerPriority === 'SNU';
     if (!this.settings) return;
 
     const changes = [];
@@ -176,12 +186,21 @@ export class Controller {
       demo: cfg.demo,
       online,
       updatedAt: this.liveAt?.toISOString() ?? null,
-      mode: cfg.mode,
-      modes: MODES,
       cheapNow: inCheapWindow(this.clock(), cfg.tariff),
       tariff: cfg.tariff,
-      nightChargeTargetSoc: cfg.nightChargeTargetSoc,
-      plan: this.desired?.reason ?? null,
+      // What the inverter reports right now, and what the app is aiming for.
+      settings: online && this.settings ? { output: this.settings.outputPriority, charger: this.settings.chargerPriority } : null,
+      plan: this.desired && {
+        output: this.desired.outputPriority,
+        charger: this.desired.chargerPriority,
+        source: this.desired.source,
+        until: this.desired.until,
+        chargeLimit: this.desired.chargeLimit,
+        limitReached: this.desired.limitReached,
+      },
+      timerOn: cfg.timerOn,
+      schedule: cfg.schedule,
+      priorities: this.priorities(),
       status: this.status(),
       alerts: this.currentAlerts(),
       battery: online ? { soc: this.live.batterySoc, volts: this.live.batteryVolts, watts: flow.batteryW } : null,
@@ -271,14 +290,56 @@ export class Controller {
     if (this.events.length > 200) this.events.length = 200;
   }
 
-  async setMode(mode) {
-    if (!MODES[mode]) throw new Error(`Unknown mode ${mode}`);
-    const cfg = this.getConfig();
-    cfg.mode = mode;
+  /** Names and plain-English meanings of the settings, for the web pages. */
+  priorities() {
+    return {
+      output: OUTPUT_INFO,
+      charger: CHARGER_INFO,
+      choices: { output: OUTPUT_CHOICES, charger: CHARGER_CHOICES },
+      limits: { maxSlots: MAX_SLOTS, minSlotMinutes: MIN_SLOT_MINUTES },
+    };
+  }
+
+  async #apply(cfg, message) {
     this.saveConfig(cfg);
     this.settingError = null;
-    this.logEvent('info', `Mode changed to "${MODES[mode].label}"`);
-    await this.enforcing; // let any in-flight change finish, then apply the new mode
+    this.logEvent('info', message);
+    await this.enforcing; // let any in-flight change finish, then apply the new settings
     await this.enforceMode();
+  }
+
+  /** A manual over-ride: until the next timer slot if the timer is on, otherwise until changed again. */
+  async setSettings(settings) {
+    if (!validSettings(settings)) throw new Error('Choose a house setting (UTI, SOL or SBU) and a battery setting (CSO, SNU or OSO)');
+    const { output, charger } = settings;
+    const cfg = this.getConfig();
+    if (!cfg.timerOn) {
+      return this.#apply({ ...cfg, manual: { output, charger } }, `Set manually: ${settingsLabel({ output, charger })}`);
+    }
+    const { slot, until } = slotAt(cfg.schedule, this.clock());
+    if (slot.output === output && slot.charger === charger) return this.clearOverride(); // same as the timer
+    return this.#apply(
+      { ...cfg, override: { output, charger, until: until.toISOString() } },
+      `Manual over-ride: ${settingsLabel({ output, charger })} until ${hhmm(until)}`,
+    );
+  }
+
+  async clearOverride() {
+    return this.#apply({ ...this.getConfig(), override: null }, 'Back to the timer');
+  }
+
+  /** Timer off keeps whatever is set right now, so nothing changes at the moment of switching. */
+  async setTimer(on) {
+    const cfg = this.getConfig();
+    if (on) return this.#apply({ ...cfg, timerOn: true, override: null }, 'Timer switched on');
+    const now = this.desired ?? { outputPriority: cfg.manual.output, chargerPriority: cfg.manual.charger };
+    const manual = { output: now.outputPriority, charger: now.chargerPriority === 'SOL' && this.unsupported.has('OSO') ? 'OSO' : now.chargerPriority };
+    return this.#apply({ ...cfg, timerOn: false, override: null, manual }, `Timer switched off: staying on ${settingsLabel(manual)}`);
+  }
+
+  async setSchedule(input) {
+    const { slots, errors } = validateSchedule(input);
+    if (errors) throw new Error(errors.join('. '));
+    return this.#apply({ ...this.getConfig(), schedule: slots }, 'Timer settings saved');
   }
 }

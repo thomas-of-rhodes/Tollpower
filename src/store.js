@@ -3,6 +3,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { defaultSchedule, scheduleFromOldMode } from './modes.js';
 
 export function readJson(file, fallback) {
   try {
@@ -13,35 +14,46 @@ export function readJson(file, fallback) {
   }
 }
 
-export function writeJson(file, value) {
+export function writeJson(file, value, indent = 2) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(value, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(value, null, indent));
   fs.renameSync(tmp, file);
 }
+
+const DEFAULT_TARIFF = {
+  name: 'Octopus Go',
+  cheapStart: '00:30',
+  cheapEnd: '05:30',
+  cheapRatePence: 8.5,
+  peakRatePence: 27.0,
+};
 
 export const DEFAULT_CONFIG = {
   demo: false,
   port: 'auto',
-  mode: 'auto',
   installerName: 'Tom',
-  tariff: {
-    name: 'Octopus Go',
-    cheapStart: '00:30',
-    cheapEnd: '05:30',
-    cheapRatePence: 8.5,
-    peakRatePence: 27.0,
-  },
-  nightChargeTargetSoc: 90,
+  tariff: DEFAULT_TARIFF,
+  timerOn: true,
+  schedule: defaultSchedule(DEFAULT_TARIFF), // daily slots: { start, output, charger, chargeLimit }
+  override: null, // a manual over-ride while the timer is on: { output, charger, until }
+  manual: { output: 'SBU', charger: 'OSO' }, // used while the timer is off
   lowBatteryWarnSoc: 20,
   pinHash: null,
 };
 
 export function loadConfig(file) {
   const saved = readJson(file, {});
-  return {
+  const { mode, nightChargeTargetSoc, ...rest } = saved; // replaced by the timer
+  const config = {
     ...DEFAULT_CONFIG,
-    ...saved,
+    ...rest,
     tariff: { ...DEFAULT_CONFIG.tariff, ...(saved.tariff || {}) },
   };
+  if (!saved.schedule) {
+    config.schedule = mode
+      ? scheduleFromOldMode(mode, config.tariff, nightChargeTargetSoc ?? 90)
+      : defaultSchedule(config.tariff);
+  }
+  return config;
 }

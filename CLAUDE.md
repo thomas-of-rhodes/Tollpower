@@ -20,22 +20,22 @@ CI (`.github/workflows/test.yml`) runs `npm test` on Node 18 on every push.
 - `src/transport.js` – USB-HID / serial I/O, port detection, `isValidPortPath`
 - `src/inverter.js` – single command queue + diagnostics log
 - `src/simulator.js` – fake inverter speaking the real byte protocol (demo + tests)
-- `src/modes.js` – the four family modes → inverter priorities, cheap-rate window
-- `src/controller.js` – polling, enforcing the mode, alerts
+- `src/modes.js` – the two inverter priorities, the daily timer (slots, Manual Over-Ride, timer off), cheap-rate window
+- `src/controller.js` – polling, enforcing the timer/over-ride, alerts
 - `src/history.js` – energy/cost history in `data/history.json`
 - `src/store.js` – `data/config.json` defaults, atomic JSON writes
 - `src/auth.js` – PIN hashing, sessions, wrong-PIN lockout
 - `src/app.js` – API routes, installer PIN, `allowedHost` check
-- `public/` – family page (`index.html`, `app.js`) and installer page
+- `public/` – family page (`index.html`, `app.js`), timer page (`timer.html`, `timer.js`) and installer page
 - `scripts/install.sh`, `scripts/update.sh` – Pi install and self-update (bash, run on the Pi)
 
 ## Rules that matter
 
 - **Inverter writes are limited.** The only setting commands the app sends are output priority (`POP0x`) and charger priority (`PCP0x`). Don't add others without a strong reason. The diagnostics console must stay read-only (`isQueryCommand`).
-- **Writes wear the inverter's EEPROM.** Keep the 5-minute retry backoff and the read-back check in `controller.js`.
+- **Writes wear the inverter's EEPROM.** Keep the 5-minute retry backoff and the read-back check in `controller.js`, and the timer limits (8 slots, 15 minutes apart).
 - **No made-up data.** History only adds up real readings; gaps stay gaps. Show "–" when offline, never stale or estimated numbers (grid power is the one documented estimate).
 - **Family API is PIN-free, installer API needs the PIN.** Every request must pass `allowedHost` (anti DNS rebinding). Port paths must pass `isValidPortPath`.
 - **Node 18 compatible** (Raspberry Pi OS Bookworm). No build tools, and add npm dependencies only when really needed.
-- **Plain-English UI text** for the family page; inverter jargon (SBU, UTI, OSO…) belongs on the installer page only.
+- **Plain-English UI text** for the family pages. The priority codes (UTI/SOL/SBU, CSO/SNU/OSO) are shown there on purpose, because they match the inverter's own screen, but always next to their plain-English meaning. Other inverter jargon belongs on the installer page.
 - Shell scripts run on the Pi, not on Windows. Keep them LF and executable, and check with `bash -n`.
 - `data/` is runtime state (config with PIN hash, history). It is gitignored; never commit it.

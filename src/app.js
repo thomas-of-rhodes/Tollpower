@@ -83,17 +83,33 @@ export function createApp({ dataDir = path.join(ROOT, 'data'), clock } = {}) {
 
   app.get('/api/status', (_req, res) => res.json(controller.snapshot()));
 
-  app.post('/api/mode', async (req, res) => {
+  // Every change goes through the controller, which writes to the inverter and reads it back.
+  const act = (fn) => async (req, res) => {
     try {
-      await controller.setMode(req.body?.mode);
+      await fn(req.body || {});
       res.json(controller.snapshot());
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
-  });
+  };
+  app.post('/api/settings', act((b) => controller.setSettings({ output: b.output, charger: b.charger })));
+  app.post('/api/settings/back-to-timer', act(() => controller.clearOverride()));
+  app.post('/api/timer', act((b) => {
+    if (typeof b.on !== 'boolean') throw new Error('Say whether the timer is on or off');
+    return controller.setTimer(b.on);
+  }));
+  app.post('/api/schedule', act((b) => controller.setSchedule(b.slots)));
 
-  app.get('/api/history', (_req, res) => {
-    res.json({ today: controller.history.todayHours(), days: controller.history.lastDays(30) });
+  // ?date=YYYY-MM-DD picks the day for the half-hourly detail (default today).
+  app.get('/api/history', (req, res) => {
+    const now = controller.clock();
+    let day = now;
+    if (req.query.date !== undefined) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(req.query.date));
+      day = m && new Date(+m[1], m[2] - 1, +m[3]);
+      if (!day || day.getDate() !== +m[3]) return res.status(400).json({ error: 'Date must be YYYY-MM-DD' });
+    }
+    res.json({ slots: controller.history.daySlots(day), days: controller.history.lastDays(30, now) });
   });
 
   app.get('/api/history.csv', (_req, res) => {
@@ -170,7 +186,6 @@ export function createApp({ dataDir = path.join(ROOT, 'data'), clock } = {}) {
         }
       }
     }
-    if (b.nightChargeTargetSoc !== undefined) pct(b.nightChargeTargetSoc) ? (next.nightChargeTargetSoc = b.nightChargeTargetSoc) : errors.push('Charge target must be 5-100%');
     if (b.lowBatteryWarnSoc !== undefined) pct(b.lowBatteryWarnSoc) ? (next.lowBatteryWarnSoc = b.lowBatteryWarnSoc) : errors.push('Low battery warning must be 5-100%');
     if (b.installerName !== undefined) next.installerName = String(b.installerName).slice(0, 30);
     if (b.port !== undefined) {

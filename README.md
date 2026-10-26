@@ -6,20 +6,33 @@ It's built so the household can use it like an appliance:
 
 - **One page, any device.** Open `http://tollpower.local` on any phone, tablet or PC on the home Wi-Fi. On a phone, use "Add to Home Screen" and it opens like an app.
 - **A traffic-light status** that says in plain English what's happening and what, if anything, to do.
-- **Four modes instead of inverter jargon.** The app sends the settings to the inverter, then reads them back to make sure they stuck.
+- **A timer for the inverter's two settings.** A daily timetable picks what powers the house and what charges the battery, for example charging from the grid on a cheap night rate. A big switch turns the timer on or off, and a Manual Over-Ride changes the settings until the next slot. The app sends each change to the inverter, then reads it back to make sure it stuck.
 - **Real history only.** Energy and savings are added up from live readings. Nothing is estimated or made up, and gaps in the data stay as gaps.
-- **Installer settings behind a PIN.** That covers the tariff, the connection, diagnostics and updates. Nothing on the network can change inverter settings except through the four modes.
+- **Through the day.** Half-hour charts share one time line: where the power came from (battery charging shows below the line), the battery level, and money spent so far against what it would have been without solar and battery. Step back through earlier days with the arrows.
+- **Installer settings behind a PIN.** That covers the tariff, the connection, diagnostics and updates. Nothing on the network can change inverter settings except those two priorities.
 
-## The modes
+## The inverter settings and the timer
 
-| Mode | What the family sees | What the inverter is set to |
-| --- | --- | --- |
-| **Automatic** (default) | Solar and battery by day; tops up the battery on cheap night-rate power | Outside the cheap window: output **SBU**, charger **only solar**. Inside the cheap window: output **UTI**, charger **solar + grid** until the battery reaches the target % (default 90%), then **only solar** |
-| **Solar & battery** | Never charges from the grid | Output **SBU**, charger **only solar** |
-| **Keep battery full** | For storms or expected power cuts | Output **UTI**, charger **solar + grid** |
-| **Grid only** | For maintenance | Output **UTI**, charger **only solar** |
+The inverter works by two settings, which the dashboard shows as the inverter reports them:
 
-Every 5 seconds the app reads the inverter. Every minute it also checks the inverter's actual settings, and puts them back if they don't match the chosen mode (for example after someone presses buttons on the inverter itself). If the inverter refuses a change, the family page shows an alert. The app retries no more than every 5 minutes, so it doesn't wear out the inverter's settings memory.
+| Setting | Options |
+| --- | --- |
+| **Output source priority** (program 01): what powers the house | **UTI** utility first · **SOL** solar first · **SBU** solar, then battery, then grid |
+| **Charger source priority** (program 16): what charges the battery | **CSO** solar first · **SNU** solar and utility together · **OSO** only solar |
+
+How these behave, per the Voltronic manual for the 11kW Axpert MAX:
+
+- **UTI** runs the house from the grid. Solar and battery only power the house if the grid fails, so solar can only charge the battery.
+- **SOL** runs the house from solar, with the grid topping up. The battery is only used if the grid fails.
+- **SBU** only turns to the grid when the battery drops to program 12 (default 10% for lithium), and goes back to the battery once it recovers to program 13 (default 30%).
+- The charger setting only applies while the inverter is running on the grid. While it runs on the battery, only solar can charge it.
+
+**Timer settings** (linked from the dashboard) hold a daily timetable of up to 8 slots, at least 15 minutes apart. Each slot runs until the next one starts and sets both priorities. A slot that charges from the grid can stop at a battery % (grid charging pauses there and resumes 5% below). The default follows the cheap window of the tariff: **UTI + SNU** up to 90% from 00:30 to 05:30, then **SBU + OSO** for the rest of the day. Older installs set to one of the old named modes are converted to the equivalent timetable.
+
+- **Timer on:** the timetable sets the inverter. A **Manual Over-Ride** on the dashboard lasts until the next slot, then the timer takes over again (or press "Back to timer").
+- **Timer off:** the inverter stays on whatever was running when the timer was switched off, until someone changes it by hand.
+
+Every 5 seconds the app reads the inverter. Every minute it also checks the inverter's actual settings, and puts them back if they don't match the timer or over-ride (for example after someone presses buttons on the inverter itself). If the inverter refuses a change, the family page shows an alert. The app retries no more than every 5 minutes, so it doesn't wear out the inverter's settings memory.
 
 Some models only have three charger options and no "only solar". The app detects this the first time the inverter refuses, and uses "solar first" instead.
 
@@ -46,7 +59,7 @@ The installer:
 4. sets it up to start automatically when the Pi boots, and to restart itself if it ever crashes
 5. renames the Pi to `tollpower`, so the address is `http://tollpower.local`. Use `--keep-hostname` to skip this.
 
-Then open the page, scroll to **Installer settings**, and choose a PIN. Check the tariff times and rates while you're there. They default to Octopus Go (00:30–05:30).
+Then open the page, scroll to **Installer settings**, and choose a PIN. Check the tariff times and rates while you're there. They default to Octopus Go (00:30–05:30). Then check **Timer settings** on the dashboard: by default it charges from the grid in that cheap window.
 
 > **Android tip:** some Android phones don't understand `.local` addresses. Use the Pi's IP address instead (the installer prints it), and ideally reserve that IP for the Pi in your router.
 
@@ -81,9 +94,9 @@ src/protocol.js      PI30 frames, checksum, and decoding of QPIGS / QPIRI / QMOD
 src/transport.js     non-blocking USB-HID and serial I/O
 src/inverter.js      one command at a time, with a diagnostics log
 src/simulator.js     pretend inverter for demo mode and tests
-src/modes.js         the four modes and the cheap-rate schedule
+src/modes.js         the two priority settings, the timer and the cheap-rate window
 src/controller.js    polling, keeping settings in line with the mode, alerts
-src/history.js       energy, cost and savings history (data/history.json)
+src/history.js       energy, cost and savings history (data/history.json): half hours for 400 days, daily totals for 10 years
 src/store.js         settings in data/config.json, saved safely against power cuts
 src/auth.js          installer PIN, login sessions and lock-out after wrong guesses
 src/app.js           web API, with PIN protection for the installer area

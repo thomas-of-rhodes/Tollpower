@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Timer · Home Power</title>
+  <meta name="theme-color" content="#121615">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="demo" class="demo-banner hidden">DEMO MODE: these are not real readings</div>
+  <main>
+    <header class="top">
+      <h1>Timer settings</h1>
+      <span class="meta"><a href="/">← Home</a></span>
+    </header>
+
+    <div class="grid">
+      <div class="alert hidden" id="timerOff">
+        <strong>The timer is switched off</strong>
+        <span>You can still change these settings. They are used once the timer is switched on from the home page.</span>
+      </div>
+
+      <section class="card">
+        <h2>Your day</h2>
+        <div class="timeline" id="timeline" role="img"></div>
+        <div class="ticks"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+        <p class="note">Each slot runs until the next one starts, and the last one runs on past midnight. A manual over-ride on the home page lasts until the next slot.</p>
+      </section>
+
+      <section class="card">
+        <h2>Slots</h2>
+        <div id="slots"></div>
+        <button class="secondary" id="addBtn" type="button">Add a slot</button>
+        <button class="primary" id="saveBtn" type="button">Save timer</button>
+        <p class="msg" id="msg"></p>
+      </section>
+
+      <section class="card">
+        <h2>What the settings mean</h2>
+        <p class="note">These are the inverter's own two menus: what powers the house (program 01) and what charges the battery (program 16).</p>
+        <dl class="glossary" id="glossary"></dl>
+        <p class="note">The battery setting only matters while the house is on the grid. While it runs on the battery, only solar can charge it.</p>
+      </section>
+    </div>
+  </main>
+  <script src="/timer.js" type="module"></script>
+</body>
+</html>

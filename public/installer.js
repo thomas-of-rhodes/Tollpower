@@ -46,11 +46,16 @@ const pill = (text, kind = '') => {
   return s;
 };
 
-const NAMES = {
-  SBU: 'Solar → battery → grid (SBU)',
-  UTI: 'Grid first (UTI)',
+// Keys are PI30 names; the bracketed code is what the inverter's own screen shows.
+const OUTPUT_NAMES = {
+  UTI: 'Utility first (UTI)',
   SOL: 'Solar first (SOL)',
-  SNU: 'Solar + grid (SNU)',
+  SBU: 'SBU priority (SBU)',
+};
+const CHARGER_NAMES = {
+  UTI: 'Utility first (CUt)',
+  SOL: 'Solar first (CSO)',
+  SNU: 'Solar and utility (SNU)',
   OSO: 'Only solar (OSO)',
 };
 
@@ -97,12 +102,13 @@ async function loadDetails() {
 
   const s = d.settings;
   const want = d.desired;
-  const match = (a, b) => (a && b && a === b ? pill('matches') : pill(`should be ${NAMES[b] ?? b ?? '–'}`, 'warn'));
+  const match = (names, a, b) => (a && b && a === b ? pill('matches') : pill(`should be ${names[b] ?? b ?? '–'}`, 'warn'));
   rows('settingsTable', s ? [
-    ['Output priority', NAMES[s.outputPriority] ?? s.outputPriority],
-    ['', match(s.outputPriority, want?.outputPriority)],
-    ['Charger priority', NAMES[s.chargerPriority] ?? s.chargerPriority],
-    ['', match(s.chargerPriority, want?.chargerPriority)],
+    ['Output priority (01)', OUTPUT_NAMES[s.outputPriority] ?? s.outputPriority],
+    ['', match(OUTPUT_NAMES, s.outputPriority, want?.outputPriority)],
+    ['Charger priority (16)', CHARGER_NAMES[s.chargerPriority] ?? s.chargerPriority],
+    ['', match(CHARGER_NAMES, s.chargerPriority, want?.chargerPriority)],
+    ['Set by', want?.reason ?? '–'],
     ['Battery type', s.batteryType],
     ['Bulk / float', `${s.batteryBulkVolts} V / ${s.batteryFloatVolts} V`],
     ['Back to grid / cut-off', `${s.batteryRechargeVolts} V / ${s.batteryUnderVolts} V`],
@@ -128,7 +134,6 @@ async function loadConfig() {
   $('cheapEnd').value = c.tariff.cheapEnd;
   $('cheapRate').value = c.tariff.cheapRatePence;
   $('peakRate').value = c.tariff.peakRatePence;
-  $('target').value = c.nightChargeTargetSoc;
   $('lowWarn').value = c.lowBatteryWarnSoc;
   $('demo').checked = c.demo;
   const opts = [{ path: 'auto', label: `Automatic (currently ${c.detectedPort})` }, ...c.ports];
@@ -154,7 +159,6 @@ $('tariffForm').addEventListener('submit', async (e) => {
         cheapRatePence: Number($('cheapRate').value),
         peakRatePence: Number($('peakRate').value),
       },
-      nightChargeTargetSoc: Number($('target').value),
       lowBatteryWarnSoc: Number($('lowWarn').value),
     });
     say('tariffMsg', 'Saved.');

@@ -16,7 +16,7 @@ const tempDir = (prefix = 'tollpower-api-') => {
 after(() => tempDirs.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
 
 const dataDir = tempDir();
-writeJson(path.join(dataDir, 'config.json'), { demo: true, mode: 'solar' });
+writeJson(path.join(dataDir, 'config.json'), { demo: true });
 const { app, controller } = createApp({ dataDir });
 const server = app.listen(0);
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -37,11 +37,34 @@ test('family status works without a PIN and shows the demo warning', async () =>
   assert.equal(typeof s.battery.soc, 'number');
 });
 
-test('family can change mode, and it reaches the (demo) inverter', async () => {
-  const r = await post('/api/mode', { mode: 'backup' });
+test('history gives the half hours of a chosen day, and checks the date', async () => {
+  const h = await (await fetch(`${base}/api/history`)).json();
+  assert.equal(h.slots.length, 48);
+  assert.equal(h.days.length, 30);
+  const old = await (await fetch(`${base}/api/history?date=2020-02-29`)).json();
+  assert.ok(old.slots.every((s) => s.empty));
+  for (const bad of ['2020-02-30', 'yesterday', '2020-2-1']) {
+    assert.equal((await fetch(`${base}/api/history?date=${bad}`)).status, 400);
+  }
+});
+
+test('family can change settings, the timer and its schedule, and it reaches the (demo) inverter', async () => {
+  const r = await post('/api/settings', { output: 'SOL', charger: 'SNU' });
   assert.equal(r.status, 200);
-  assert.equal(controller.settings.outputPriority, 'UTI');
-  assert.equal((await post('/api/mode', { mode: 'nonsense' })).status, 400);
+  assert.equal(controller.settings.outputPriority, 'SOL');
+  assert.equal((await r.json()).plan.source, 'override');
+  assert.equal((await post('/api/settings', { output: 'nonsense', charger: 'SNU' })).status, 400);
+  assert.equal((await post('/api/settings/back-to-timer', {})).status, 200);
+
+  assert.equal((await post('/api/timer', { on: 'yes' })).status, 400);
+  const off = await (await post('/api/timer', { on: false })).json();
+  assert.equal(off.timerOn, false);
+  assert.equal((await post('/api/timer', { on: true })).status, 200);
+
+  const slots = [{ start: '06:00', output: 'SBU', charger: 'OSO' }, { start: '01:00', output: 'UTI', charger: 'SNU', chargeLimit: 80 }];
+  const saved = await (await post('/api/schedule', { slots })).json();
+  assert.deepEqual(saved.schedule.map((s) => s.start), ['01:00', '06:00']);
+  assert.equal((await post('/api/schedule', { slots: [] })).status, 400);
 });
 
 test('installer area needs a PIN; wrong PINs lock out', async () => {

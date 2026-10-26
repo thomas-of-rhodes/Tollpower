@@ -1,5 +1,7 @@
 // Family page. Refreshes every 5 seconds while visible.
 
+import { renderDay } from './daychart.js';
+
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...children) => {
   const node = document.createElement(tag);
@@ -10,8 +12,10 @@ const el = (tag, attrs = {}, ...children) => {
 
 const kw = (w) => (w === null || w === undefined ? '–' : Math.abs(w) >= 1000 ? `${(w / 1000).toFixed(1)} kW` : `${Math.round(w)} W`);
 const pounds = (p) => `£${p.toFixed(2)}`;
+const hhmm = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
-let changing = false;
+let busy = false; // a change is being sent; don't redraw the controls under the user
+let choosing = null; // { output, charger } while "Manual Over-Ride" is open
 let lastStatus = null;
 
 async function getJson(url, opts) {
@@ -28,7 +32,6 @@ function render(s) {
   const st = $('status');
   st.className = `status ${s.status.level}`;
   $('headline').textContent = s.status.headline;
-  $('plan').textContent = s.online && s.plan ? `Now: ${s.plan}` : '';
 
   const alerts = $('alerts');
   alerts.replaceChildren(
@@ -47,8 +50,7 @@ function render(s) {
     ? `Cheap rate now (${t.cheapStart}–${t.cheapEnd}), ${t.cheapRatePence}p/kWh`
     : `Normal rate now (${t.peakRatePence}p/kWh). Cheap rate ${t.cheapStart}–${t.cheapEnd}.`;
 
-  // Modes
-  if (!changing) renderModes(s);
+  if (!busy) renderSettings(s);
 
   // Today
   $('tSolar').textContent = `${s.today.solarKWh.toFixed(1)} kWh`;
@@ -146,45 +148,121 @@ function renderScene(s) {
       + `Battery ${soc === null ? 'unknown' : `${Math.round(soc)}%`}${state ? `, ${state}` : ''}${$('sceneBatW').textContent.replace(' · ', ' at ')}.`);
 }
 
-function renderModes(s) {
-  const box = $('modes');
-  box.replaceChildren(
-    ...Object.entries(s.modes).map(([key, m]) => {
-      const b = el('button', { class: `mode${key === s.mode ? ' active' : ''}`, type: 'button', 'aria-pressed': String(key === s.mode) },
-        el('strong', {}, m.label), el('span', {}, m.blurb));
-      b.addEventListener('click', () => chooseMode(key, m.label));
-      return b;
-    }),
-  );
+// ---- Timer and inverter settings -------------------------------------------
+
+const label = (s, { output, charger }) => `${s.priorities.output[output].code} + ${s.priorities.charger[charger].code}`;
+
+function renderSettings(s) {
+  const { output: OUT, charger: CHG } = s.priorities;
+  const sw = $('timerSwitch');
+  sw.setAttribute('aria-checked', String(s.timerOn));
+  // Only animate the lever once it shows the real state, not on page load
+  if (!sw.classList.contains('ready')) requestAnimationFrame(() => requestAnimationFrame(() => sw.classList.add('ready')));
+  $('timerState').textContent = s.timerOn ? 'On: the timer sets the inverter' : 'Off: stays as set manually';
+
+  // What the inverter itself reports, not what we asked for.
+  const now = s.settings;
+  const show = (prefix, info, plainKey) => {
+    $(`${prefix}Code`).textContent = info ? info.code : '–';
+    $(`${prefix}Name`).textContent = info ? info.name : '';
+    $(`${prefix}Plain`).textContent = info ? info[plainKey] : 'No live reading';
+  };
+  show('out', now && OUT[now.output], 'house');
+  show('chg', now && CHG[now.charger], 'battery');
+
+  const p = s.plan;
+  const note = $('planNote');
+  note.replaceChildren();
+  if (p && s.online) {
+    const changingNow = now && (now.output !== p.output || now.charger !== p.charger);
+    let text = changingNow ? `Changing to ${label(s, p)}…` : {
+      timer: `Set by the timer until ${p.until && hhmm(p.until)}.`,
+      override: `Manual over-ride until ${p.until && hhmm(p.until)}, then the timer takes over.`,
+      manual: 'Timer off: stays like this until you change it.',
+    }[p.source];
+    if (p.limitReached) text += ` Battery reached ${p.chargeLimit}%, so grid charging is paused.`;
+    else if (p.chargeLimit && p.charger !== 'OSO') text += ` Grid charging up to ${p.chargeLimit}%.`;
+    note.append(text);
+    if (p.source === 'override') {
+      const back = el('button', { class: 'link', type: 'button' }, 'Back to timer');
+      back.addEventListener('click', () => send('/api/settings/back-to-timer', {}, 'Back on the timer.'));
+      note.append(' ', back);
+    }
+  } else if (!s.online) {
+    note.append('The settings will be checked again when the inverter is reachable.');
+  }
+
+  $('changeBtn').classList.toggle('hidden', !!choosing);
+  $('chooser').classList.toggle('hidden', !choosing);
+  if (choosing) renderChooser(s);
 }
 
-async function chooseMode(key, label) {
-  if (changing || key === lastStatus?.mode) return;
-  changing = true;
-  const msg = $('modeMsg');
-  msg.textContent = `Switching to "${label}"…`;
-  for (const b of document.querySelectorAll('.mode')) b.disabled = true;
-  try {
-    const s = await getJson('/api/mode', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ mode: key }),
+function renderChooser(s) {
+  const { output: OUT, charger: CHG, choices } = s.priorities;
+  const options = (box, keys, info, plainKey, field) => $(box).replaceChildren(...keys.map((k) => {
+    const b = el('button', { class: 'seg', type: 'button', 'aria-pressed': String(choosing[field] === k) },
+      el('strong', {}, info[k].code), el('span', {}, info[k].name), el('small', {}, info[k][plainKey]));
+    b.addEventListener('click', () => {
+      choosing[field] = k;
+      renderChooser(s);
     });
-    changing = false;
+    return b;
+  }));
+  options('chooseOutput', choices.output, OUT, 'house', 'output');
+  options('chooseCharger', choices.charger, CHG, 'battery', 'charger');
+  $('chooseNote').textContent = s.timerOn
+    ? `Lasts until ${s.plan?.until ? hhmm(s.plan.until) : 'the next timer slot'}, then the timer takes over.`
+    : 'The timer is off, so this stays until you change it.';
+}
+
+async function send(url, body, done) {
+  if (busy) return;
+  busy = true;
+  const msg = $('settingsMsg');
+  msg.className = 'msg';
+  msg.textContent = 'Sending to the inverter…';
+  try {
+    const s = await getJson(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    busy = false;
     render(s);
     const failed = s.alerts.some((a) => a.key === 'setting');
+    msg.className = `msg ${failed ? 'error' : 'good'}`;
     msg.textContent = !s.online
-      ? `Saved. "${label}" will be applied when the inverter is reachable again.`
-      : failed
-        ? `Saved, but the inverter didn't accept it yet. It will keep trying.`
-        : `Done. The inverter confirmed "${label}".`;
+      ? 'Saved. It will be applied when the inverter is reachable again.'
+      : failed ? "Saved, but the inverter didn't accept it yet. It will keep trying." : done;
   } catch (err) {
-    msg.textContent = `Couldn't change mode: ${err.message}`;
+    msg.className = 'msg error';
+    msg.textContent = `Couldn't change it: ${err.message}`;
   } finally {
-    changing = false;
-    if (lastStatus) renderModes(lastStatus);
+    busy = false;
+    if (lastStatus) renderSettings(lastStatus);
   }
 }
+
+$('timerSwitch').addEventListener('click', () => {
+  if (!lastStatus || busy) return;
+  const on = !lastStatus.timerOn;
+  $('timerSwitch').setAttribute('aria-checked', String(on)); // move the lever straight away
+  send('/api/timer', { on }, on ? 'Timer on: it sets the inverter from now.' : 'Timer off: the settings stay as they are.');
+});
+
+$('changeBtn').addEventListener('click', () => {
+  if (!lastStatus) return;
+  const p = lastStatus.plan ?? lastStatus.settings ?? { output: 'SBU', charger: 'OSO' };
+  choosing = { output: p.output, charger: p.charger === 'UTI' ? 'SNU' : p.charger };
+  $('settingsMsg').textContent = '';
+  renderSettings(lastStatus);
+});
+$('cancelBtn').addEventListener('click', () => {
+  choosing = null;
+  if (lastStatus) renderSettings(lastStatus);
+});
+$('applyBtn').addEventListener('click', () => {
+  if (!choosing || !lastStatus) return;
+  const chosen = choosing;
+  choosing = null;
+  send('/api/settings', chosen, `Done. The inverter confirmed ${label(lastStatus, chosen)}.`);
+});
 
 function renderChart(days) {
   const svg = $('chart');
@@ -226,22 +304,58 @@ async function refresh() {
     render(await getJson('/api/status'));
   } catch {
     $('status').className = 'status problem';
-    $('headline').textContent = "Can't reach the Pi";
-    $('plan').textContent = 'Check you are on the home Wi-Fi.';
+    $('headline').textContent = "Can't reach the Pi. Check you are on the home Wi-Fi.";
   }
+}
+
+// Which day "Through the day" shows: 0 is today, -1 yesterday, ...
+let dayOffset = 0;
+let lastSlots = null;
+
+function shownDay() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + dayOffset);
+}
+
+function drawDay() {
+  if (!lastSlots) return;
+  const totals = renderDay(
+    { power: $('dayPower'), battery: $('dayBattery'), money: $('dayMoney') },
+    lastSlots,
+    { tariff: lastStatus?.tariff, now: dayOffset === 0 ? new Date() : null },
+  );
+  $('dayNote').textContent = totals
+    ? `Spent ${pounds(totals.spentPence / 100)}. Without solar and battery it would have been ${pounds(totals.wouldHaveSpentPence / 100)}.`
+    : 'No readings for this day.';
 }
 
 async function refreshHistory() {
   try {
-    const h = await getJson('/api/history');
+    const d = shownDay();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const h = await getJson(`/api/history?date=${date}`);
     renderChart(h.days.slice(-14));
+    lastSlots = h.slots;
+    drawDay();
   } catch {
     /* try again next time */
   }
 }
 
-refresh();
-refreshHistory();
+function changeDay(step) {
+  dayOffset = Math.min(0, Math.max(-399, dayOffset + step));
+  const d = shownDay();
+  $('dayName').textContent = dayOffset === 0 ? 'Today' : dayOffset === -1 ? 'Yesterday'
+    : d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+  $('dayNext').disabled = dayOffset === 0;
+  lastSlots = null;
+  refreshHistory();
+}
+$('dayPrev').addEventListener('click', () => changeDay(-1));
+$('dayNext').addEventListener('click', () => changeDay(1));
+addEventListener('resize', drawDay);
+
+refresh().finally(refreshHistory); // the day chart shades the cheap hours from the status
 setInterval(() => document.visibilityState === 'visible' && refresh(), 5000);
 setInterval(() => document.visibilityState === 'visible' && refreshHistory(), 60000);
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && refresh());

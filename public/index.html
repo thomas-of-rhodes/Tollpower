@@ -26,7 +26,6 @@
           <div class="dot" aria-hidden="true"></div>
           <div>
             <p class="headline" id="headline">Connecting to the inverter…</p>
-            <p class="plan" id="plan"></p>
           </div>
         </div>
         <div id="alerts"></div>
@@ -126,9 +125,47 @@
       </section>
 
       <section class="card">
-        <h2>Mode</h2>
-        <div class="modes" id="modes"></div>
-        <p class="note" id="modeMsg">Tap a mode to switch. The inverter is checked to make sure it changed.</p>
+        <div class="timer-row">
+          <button class="timer-switch" id="timerSwitch" type="button" role="switch" aria-checked="false" aria-labelledby="timerTitle">
+            <span class="ts-body">
+              <span class="ts-words" aria-hidden="true"><span class="ts-off">Off</span><span class="ts-on">On</span></span>
+              <span class="ts-track"><span class="ts-knob"></span></span>
+            </span>
+            <span class="ts-lamp" aria-hidden="true"></span>
+          </button>
+          <div class="timer-text">
+            <h2 id="timerTitle">Timer</h2>
+            <p class="timer-state" id="timerState">–</p>
+            <a class="timer-link" href="/timer">Timer settings →</a>
+          </div>
+        </div>
+
+        <!-- What the inverter reports right now: its two priority settings. -->
+        <div class="now-settings">
+          <div class="setting">
+            <div class="setting-label">Powers the house</div>
+            <div class="setting-main"><span class="code" id="outCode">–</span><span class="setting-name" id="outName"></span></div>
+            <p class="setting-plain" id="outPlain"></p>
+          </div>
+          <div class="setting">
+            <div class="setting-label">Charges the battery</div>
+            <div class="setting-main"><span class="code" id="chgCode">–</span><span class="setting-name" id="chgName"></span></div>
+            <p class="setting-plain" id="chgPlain"></p>
+          </div>
+        </div>
+        <p class="plan-note" id="planNote"></p>
+
+        <button class="secondary" id="changeBtn" type="button">Manual Over-Ride</button>
+        <div class="chooser hidden" id="chooser">
+          <div class="choose-label">Powers the house</div>
+          <div class="segmented" id="chooseOutput"></div>
+          <div class="choose-label">Charges the battery</div>
+          <div class="segmented" id="chooseCharger"></div>
+          <p class="note" id="chooseNote"></p>
+          <button class="primary" id="applyBtn" type="button">Apply</button>
+          <button class="secondary" id="cancelBtn" type="button">Cancel</button>
+        </div>
+        <p class="msg" id="settingsMsg"></p>
       </section>
 
       <section class="card">
@@ -138,8 +175,42 @@
           <div class="stat"><div class="value" id="tGrid">–</div><div class="label">Bought from grid</div></div>
           <div class="stat"><div class="value" id="tSaved">–</div><div class="label">Saved today</div></div>
         </div>
+      </section>
+
+      <section class="card">
+        <div class="day-head">
+          <h2>Through the day</h2>
+          <div class="day-pick" role="group" aria-label="Which day">
+            <button type="button" id="dayPrev" aria-label="Previous day">‹</button>
+            <span id="dayName">Today</span>
+            <button type="button" id="dayNext" aria-label="Next day" disabled>›</button>
+          </div>
+        </div>
+        <div class="legend wrap">
+          <span><i style="background:var(--solar)"></i>Sunshine</span>
+          <span><i style="background:var(--battery)"></i>From battery</span>
+          <span><i style="background:var(--grid)"></i>From grid</span>
+          <span><i class="into"></i>Into battery</span>
+          <span><i class="line-key"></i>House used</span>
+          <span><i class="cheap-key"></i>Cheap rate</span>
+        </div>
+        <div class="chart-label">Power (kW)</div>
+        <svg class="daychart" id="dayPower" style="height:180px" role="img" aria-label="Where the house's power came from through the day, with battery charging below the line"></svg>
+        <div class="chart-label">Battery</div>
+        <svg class="daychart" id="dayBattery" style="height:80px" role="img" aria-label="Battery level through the day"></svg>
+        <div class="chart-label">Money so far</div>
+        <svg class="daychart" id="dayMoney" style="height:130px" role="img" aria-label="Money spent so far, and what it would have been without solar and battery"></svg>
+        <div class="legend wrap">
+          <span><i class="spent-key"></i>Spent</span>
+          <span><i class="would-key"></i>Would have spent without solar and battery</span>
+        </div>
+        <p class="note" id="dayNote"></p>
+      </section>
+
+      <section class="card">
+        <h2>Last 14 days</h2>
         <svg class="chart" id="chart" role="img" aria-label="Solar and grid energy for the last 14 days"></svg>
-        <div class="legend"><span><i style="background:var(--solar)"></i>Solar</span><span><i style="background:var(--grid)"></i>Grid</span><span>Last 14 days</span></div>
+        <div class="legend"><span><i style="background:var(--solar)"></i>Solar</span><span><i style="background:var(--grid)"></i>Grid</span></div>
       </section>
     </div>
 
